@@ -1,0 +1,4 @@
+git rm -r __pycache__
+git rm presentation_slides.md
+git commit -m "Project cleanup: removed auto-generated files and unnecessary presentation file"
+git push
