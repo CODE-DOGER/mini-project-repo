@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="text-center mb-4">
+        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🍽️</div>
+        <h2>Welcome Back</h2>
+        <p class="text-muted">Sign in to manage your reservations</p>
+    </div>
+    <form id="loginForm">
+        <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" class="form-control" required placeholder="you@example.com">
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" class="form-control" required placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-block mt-4" id="submitBtn">Sign In</button>
+    </form>
+    <p class="text-center mt-4 text-muted">
+        New here? <a href="{{ url_for('register') }}" style="color: var(--primary); font-weight: 500; text-decoration: none;">Create an account</a>
+    </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.onload = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('verified') === 'true') {
+        if(typeof showSuccess === 'function') showSuccess('Your email has been verified! You can now log in.');
+        else alert('Your email has been verified! You can now log in.');
+    }
+};
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    btn.textContent = 'Signing in...';
+    btn.disabled = true;
+
+    try {
+        const data = {
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+        };
+        const result = await apiCall('login', 'POST', data);
+        
+        // Redirect based on role
+        if (result.role === 'admin') {
+            window.location.href = "{{ url_for('admin_dashboard') }}";
+        } else {
+            window.location.href = "{{ url_for('dashboard') }}";
+        }
+    } catch(err) {
+        showAlert(err.message);
+        btn.textContent = 'Sign In';
+        btn.disabled = false;
+    }
+});
+</script>
+{% endblock %}

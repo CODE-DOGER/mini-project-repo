@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin-bottom: 2rem;">
+    <div style="margin-bottom: 2rem;">
+        <h2 style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-main);">
+            <span>📅</span> Find a Table
+        </h2>
+        <p class="text-muted" style="margin-top: 0.25rem;">Select your preferred date, time, and party size to see available options.</p>
+    </div>
+    <form id="searchForm">
+        <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+            <div class="form-group">
+                <label for="date">Date</label>
+                <input type="date" id="date" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="time">Time</label>
+                <input type="time" id="time" class="form-control" required step="1800">
+            </div>
+            <div class="form-group">
+                <label for="guests">Guests</label>
+                <input type="number" id="guests" class="form-control" required min="1" max="20" value="2">
+            </div>
+            <div class="form-group">
+                <label for="location">Location</label>
+                <select id="location" class="form-control">
+                    <option value="">Any Location</option>
+                    <option value="indoor">Indoor</option>
+                    <option value="outdoor">Outdoor</option>
+                </select>
+            </div>
+        </div>
+        <div style="text-align: right; margin-top: 1rem;">
+            <button type="submit" class="btn" id="searchBtn">Check Availability</button>
+        </div>
+    </form>
+</div>
+
+<div id="resultsSection" style="display: none;">
+    <h3 class="mb-4">Available Tables</h3>
+    <div id="tablesGrid" class="grid"></div>
+    <div id="noResults" class="alert alert-error text-center" style="display: none;">
+        No tables match your criteria. Please try another date or time.
+    </div>
+
+    <div id="bookingSection" class="card mt-4" style="max-width: 100%; display: none; text-align: center;">
+        <h3>Selected Table: <span id="selectedTableName" style="color: var(--primary);"></span></h3>
+        <p class="text-muted mb-4">You are about to book this table for <span id="summaryText"></span>.</p>
+        <button id="reserveBtn" class="btn btn-block">Confirm & Proceed to Payment</button>
+    </div>
+</div>
+
+<div class="card mt-5" style="max-width: 800px; margin-bottom: 2rem;">
+    <h2 style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-main);">
+        <span>⚙️</span> My Profile
+    </h2>
+    <p class="text-muted" style="margin-top: 0.25rem;">Update your credentials.</p>
+    <form id="profileForm" class="mt-4">
+        <div class="form-group">
+            <label for="newPhone">New Phone Number (Optional)</label>
+            <input type="tel" id="newPhone" class="form-control" placeholder="1234567890">
+        </div>
+        <div class="form-group">
+            <label for="newPassword">New Password (Optional)</label>
+            <input type="password" id="newPassword" class="form-control" placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn" id="profileBtn">Update Credentials</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Set min date to today
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('date').setAttribute('min', today);
+
+let selectedTable = null;
+let searchParams = null;
+
+document.getElementById('searchForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('searchBtn');
+    btn.textContent = 'Searching...';
+    btn.disabled = true;
+
+    searchParams = {
+        date: document.getElementById('date').value,
+        time: document.getElementById('time').value,
+        guests: document.getElementById('guests').value,
+        location: document.getElementById('location').value
+    };
+
+    try {
+        let qs = `?date=${encodeURIComponent(searchParams.date)}&time=${encodeURIComponent(searchParams.time)}&guests=${encodeURIComponent(searchParams.guests)}`;
+        if (searchParams.location) qs += `&location=${encodeURIComponent(searchParams.location)}`;
+
+        const response = await fetch(`/api/available-tables${qs}`);
+        const result = await response.json();
+
+        document.getElementById('resultsSection').style.display = 'block';
+        const tablesGrid = document.getElementById('tablesGrid');
+        const noResults = document.getElementById('noResults');
+        const bookingSection = document.getElementById('bookingSection');
+
+        tablesGrid.innerHTML = '';
+        selectedTable = null;
+        bookingSection.style.display = 'none';
+
+        if (result.available_tables.length === 0) {
+            noResults.style.display = 'block';
+        } else {
+            noResults.style.display = 'none';
+            result.available_tables.forEach(table => {
+                const card = document.createElement('div');
+                card.className = 'table-card';
+                card.innerHTML = `
+                    <h3 style="font-size: 1.25rem;">Table ${table.table_number}</h3>
+                    <p class="text-muted mb-2">Capacity: ${table.capacity} guests</p>
+                    <span class="badge badge-${table.location}">${table.location}</span>
+                `;
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.table-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    selectedTable = table;
+                    
+                    document.getElementById('selectedTableName').textContent = `Table ${table.table_number}`;
+                    document.getElementById('summaryText').textContent = `${searchParams.guests} guests on ${searchParams.date} at ${searchParams.time}`;
+                    bookingSection.style.display = 'block';
+                    bookingSection.scrollIntoView({ behavior: 'smooth' });
+                });
+                tablesGrid.appendChild(card);
+            });
+        }
+    } catch(err) {
+        showAlert(err.message || 'Error checking availability');
+    } finally {
+        btn.textContent = 'Check Availability';
+        btn.disabled = false;
+    }
+});
+
+document.getElementById('reserveBtn').addEventListener('click', async () => {
+    if (!selectedTable || !searchParams) return;
+    
+    const btn = document.getElementById('reserveBtn');
+    btn.textContent = 'Reserving...';
+    btn.disabled = true;
+
+    try {
+        const payload = {
+            table_id: selectedTable.table_id,
+            date: searchParams.date,
+            time: searchParams.time,
+            guests: searchParams.guests
+        };
+        const result = await apiCall('reserve-table', 'POST', payload);
+        
+        showSuccess("Table reserved temporarily. Redirecting to payment...");
+        setTimeout(() => {
+            window.location.href = `{{ url_for('transaction') }}?id=${result.reservation_id}`;
+        }, 1000);
+    } catch (err) {
+        showAlert(err.message);
+        btn.textContent = 'Confirm & Proceed to Payment';
+        btn.disabled = false;
+    }
+});
+
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('profileBtn');
+    btn.textContent = 'Updating...';
+    btn.disabled = true;
+
+    try {
+        const payload = {};
+        const phone = document.getElementById('newPhone').value;
+        const password = document.getElementById('newPassword').value;
+        if (phone) payload.phone = phone;
+        if (password) payload.password = password;
+
+        if (Object.keys(payload).length === 0) {
+            showAlert('Please provide at least one field to update.');
+        } else {
+            await apiCall('user/credentials', 'PUT', payload);
+            if(typeof showSuccess === 'function') showSuccess('Credentials updated successfully!');
+            document.getElementById('profileForm').reset();
+        }
+    } catch(err) {
+        showAlert(err.message || 'Error updating credentials');
+    } finally {
+        btn.textContent = 'Update Credentials';
+        btn.disabled = false;
+    }
+});
+</script>
+{% endblock %}

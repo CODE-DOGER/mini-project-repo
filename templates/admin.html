@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .admin-tabs { display: flex; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+    .admin-tab { padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px; font-weight: 500; transition: background 0.2s; }
+    .admin-tab.active { background: var(--primary); color: white; }
+    .admin-tab:not(.active):hover { background: rgba(0,0,0,0.05); }
+    .stat-card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; text-align: center; flex: 1; }
+    .stat-card h3 { color: var(--text-muted); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card .value { font-size: 2.5rem; font-weight: bold; color: var(--primary); margin-top: 0.5rem; }
+    .stats-grid { display: flex; gap: 1rem; margin-bottom: 2rem; }
+</style>
+
+<div class="card" style="max-width: 1200px; width: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
+        <div>
+            <h2 style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-main);">
+                <span>⚙️</span> Admin Dashboard
+            </h2>
+            <p class="text-muted" style="margin-top: 0.25rem;">Manage platform operations and analytics.</p>
+        </div>
+        <div>
+            <span class="badge" style="background: var(--primary); color: white;">Admin Access</span>
+        </div>
+    </div>
+    
+    <div class="admin-tabs">
+        <div class="admin-tab active" data-target="dashboardTab">Dashboard</div>
+        <div class="admin-tab" data-target="reservationsTab">Reservations</div>
+        <div class="admin-tab" data-target="usersTab">Users</div>
+        <div class="admin-tab" data-target="tablesTab">Tables</div>
+    </div>
+    
+    <!-- DASHBOARD TAB -->
+    <div id="dashboardTab" class="tab-content" style="display: block;">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Tables</h3>
+                <div class="value" id="statTotalTables">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Today's Reservations</h3>
+                <div class="value" id="statTodayRes">-</div>
+            </div>
+        </div>
+        <h3 class="mb-4">Bookings (Last 7 Days)</h3>
+        <canvas id="bookingsChart" width="400" height="150"></canvas>
+    </div>
+
+    <!-- RESERVATIONS TAB -->
+    <div id="reservationsTab" class="tab-content" style="display: none;">
+        <h3 class="mb-4">Manage Reservations</h3>
+        <div id="resContent"><p class="text-muted">Loading...</p></div>
+    </div>
+
+    <!-- USERS TAB -->
+    <div id="usersTab" class="tab-content" style="display: none;">
+        <h3 class="mb-4">Manage Users</h3>
+        <div id="usersContent"><p class="text-muted">Loading...</p></div>
+    </div>
+
+    <!-- TABLES TAB -->
+    <div id="tablesTab" class="tab-content" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3>Manage Tables</h3>
+            <button class="btn btn-sm" onclick="toggleAddTableForm()">+ Add Table</button>
+        </div>
+        
+        <div id="addTableForm" style="display: none; background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid var(--border);">
+            <form id="newTableForm" style="display: flex; gap: 1rem; align-items: flex-end;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Table No.</label>
+                    <input type="text" id="tNum" class="form-control" required placeholder="T99">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Capacity</label>
+                    <input type="number" id="tCap" class="form-control" required min="1" value="2">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Location</label>
+                    <select id="tLoc" class="form-control">
+                        <option value="indoor">Indoor</option>
+                        <option value="outdoor">Outdoor</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">Save</button>
+            </form>
+        </div>
+
+        <div id="tablesContent"><p class="text-muted">Loading...</p></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Tab Switching
+document.querySelectorAll('.admin-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.target).style.display = 'block';
+    });
+});
+
+async function loadDashboard() {
+    try {
+        const data = await apiCall('admin/stats', 'GET');
+        document.getElementById('statTotalTables').textContent = data.total_tables;
+        document.getElementById('statTodayRes').textContent = data.today_reservations;
+        
+        const ctx = document.getElementById('bookingsChart').getContext('2d');
+        const labels = data.daily_bookings.map(d => d.date);
+        const counts = data.daily_bookings.map(d => d.count);
+        
+        // Destroy existing chart if it exists to prevent overlap
+        if(window.myChart) {
+            window.myChart.destroy();
+        }
+        
+        window.myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Reservations',
+                    data: counts,
+                    backgroundColor: 'rgba(0, 166, 153, 0.6)',
+                    borderColor: 'rgba(0, 166, 153, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: { scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+        });
+    } catch(err) { console.error('Dashboard error:', err); }
+}
+
+async function loadReservations() {
+    try {
+        const data = await apiCall('admin/reservations', 'GET');
+        const container = document.getElementById('resContent');
+        if (data.reservations.length === 0) {
+            container.innerHTML = `<div class="text-center py-4"><p class="text-muted">No reservations found.</p></div>`;
+            return;
+        }
+        let html = `<div class="data-table-container"><table class="data-table"><thead><tr><th>ID</th><th>Customer</th><th>Date & Time</th><th>Table</th><th>Status</th><th>Action</th></tr></thead><tbody>`;
+        data.reservations.forEach(row => {
+            const rowDate = new Date(row.reservation_date).toLocaleDateString();
+            html += `<tr>
+                <td class="text-muted">#${row.reservation_id}</td>
+                <td><div style="font-weight: 500">${row.user_name}</div><div class="text-muted" style="font-size: 0.85em;">${row.email}</div></td>
+                <td><div style="font-weight: 500">${rowDate}</div><div class="text-muted" style="font-size: 0.85em;">${row.reservation_time}</div></td>
+                <td>Table ${row.table_number}</td>
+                <td><span class="badge badge-${row.status}">${row.status}</span></td>
+                <td><button class="btn btn-sm" style="background:#d9534f;" onclick="deleteReservation(${row.reservation_id})">Cancel/Del</button></td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    } catch(err) { console.error(err); }
+}
+
+async function loadUsers() {
+    try {
+        const data = await apiCall('admin/users', 'GET');
+        const container = document.getElementById('usersContent');
+        let html = `<div class="data-table-container"><table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Email / Phone</th><th>Role</th><th>Verified</th><th>Action</th></tr></thead><tbody>`;
+        data.users.forEach(row => {
+            html += `<tr>
+                <td class="text-muted">#${row.user_id}</td>
+                <td>${row.name}</td>
+                <td><div>${row.email}</div><div class="text-muted" style="font-size: 0.85em">${row.phone}</div></td>
+                <td><span class="badge ${row.role==='admin'?'badge-confirmed':'badge-pending'}">${row.role}</span></td>
+                <td>${row.is_verified ? '✅ Yes' : '⏳ No'}</td>
+                <td>
+                    ${row.role !== 'admin' ? `<button class="btn btn-sm" style="background:#d9534f;" onclick="deleteUser(${row.user_id})">Delete</button>` : ''}
+                </td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    } catch(err) { console.error(err); }
+}
+
+async function loadTables() {
+    try {
+        const data = await apiCall('admin/tables', 'GET');
+        const container = document.getElementById('tablesContent');
+        let html = `<div class="data-table-container"><table class="data-table"><thead><tr><th>ID</th><th>Number</th><th>Capacity</th><th>Location</th><th>Action</th></tr></thead><tbody>`;
+        data.tables.forEach(row => {
+            html += `<tr>
+                <td class="text-muted">#${row.table_id}</td>
+                <td>${row.table_number}</td>
+                <td>${row.capacity}</td>
+                <td>${row.location}</td>
+                <td><button class="btn btn-sm" style="background:#d9534f;" onclick="deleteTable(${row.table_id})">Delete</button></td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    } catch(err) { console.error(err); }
+}
+
+// Action functions
+async function deleteReservation(id) {
+    if(!confirm('Are you sure you want to delete this reservation?')) return;
+    try { await apiCall('admin/reservations', 'DELETE', {reservation_id: id}); if(typeof showSuccess ==='function') showSuccess('Deleted'); loadReservations(); loadDashboard(); } catch(err) { alert(err.message); }
+}
+async function deleteUser(id) {
+    if(!confirm('Delete this user? This will also delete their reservations.')) return;
+    try { await apiCall('admin/users', 'DELETE', {user_id: id}); if(typeof showSuccess ==='function') showSuccess('Deleted'); loadUsers(); } catch(err) { alert(err.message); }
+}
+async function deleteTable(id) {
+    if(!confirm('Delete this table?')) return;
+    try { await apiCall('admin/tables', 'DELETE', {table_id: id}); if(typeof showSuccess ==='function') showSuccess('Deleted'); loadTables(); loadDashboard(); } catch(err) { alert(err.message); }
+}
+
+function toggleAddTableForm() {
+    const form = document.getElementById('addTableForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+document.getElementById('newTableForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = { table_number: document.getElementById('tNum').value, capacity: document.getElementById('tCap').value, location: document.getElementById('tLoc').value };
+    try {
+        await apiCall('admin/tables', 'POST', payload);
+        if(typeof showSuccess ==='function') showSuccess('Table added!');
+        document.getElementById('newTableForm').reset();
+        toggleAddTableForm();
+        loadTables();
+        loadDashboard();
+    } catch(err) { alert(err.message); }
+});
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboard();
+    loadReservations();
+    loadUsers();
+    loadTables();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Savor | Table Reservations</title>
+    <!-- Add SEO Meta Tags -->
+    <meta name="description" content="Reserve your table at Savor, premium dining experience. Book indoor and outdoor tables seamlessly.">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('index') }}" class="brand">
+                🍽️ Savor
+            </a>
+            <div class="nav-links">
+                {% if session.get('user_id') %}
+                    {% if session.get('role') == 'admin' %}
+                        <a href="{{ url_for('admin_dashboard') }}">Admin Panel</a>
+                    {% else %}
+                        <a href="{{ url_for('dashboard') }}">Book a Table</a>
+                        <a href="{{ url_for('history') }}">My Bookings</a>
+                    {% endif %}
+                    <a href="{{ url_for('api_logout') }}" class="btn btn-outline">Logout ({{ session.get('name') }})</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}">Login</a>
+                    <a href="{{ url_for('register') }}" class="btn">Register</a>
+                {% endif %}
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div id="alertBox" class="alert"></div>
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

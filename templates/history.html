@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card" style="max-width: 1000px;">
+    <h2 class="mb-4" style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-main);">
+        <span>🕒</span> My Bookings
+    </h2>
+    
+    <div id="historyContent">
+        <p class="text-muted text-center py-4">Loading your history...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const data = await apiCall('history', 'GET');
+        const container = document.getElementById('historyContent');
+        
+        if (data.history.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-4">
+                    <p class="text-muted mb-4">You have no reservations yet.</p>
+                    <a href="{{ url_for('dashboard') }}" class="btn">Book a Table</a>
+                </div>
+            `;
+            return;
+        }
+
+        let html = `
+            <div class="data-table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date / Time</th>
+                            <th>Table</th>
+                            <th>Guests</th>
+                            <th>Status</th>
+                            <th>Payment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        data.history.forEach(row => {
+            const rowDate = new Date(row.reservation_date).toLocaleDateString();
+            const statusClass = `badge-${row.status}`;
+            const pmtText = row.transaction_status === 'success' ? `Paid (${row.payment_method})` : 'Pending';
+
+            html += `
+                <tr>
+                    <td>
+                        <div style="font-weight: 500">${rowDate}</div>
+                        <div class="text-muted" style="font-size: 0.85em;">${row.reservation_time}</div>
+                    </td>
+                    <td>
+                        <div>Table ${row.table_number}</div>
+                        <span class="badge badge-${row.location}" style="font-size: 0.7em;">${row.location}</span>
+                    </td>
+                    <td>${row.guests}</td>
+                    <td><span class="badge ${statusClass}">${row.status}</span></td>
+                    <td>${pmtText}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        container.innerHTML = html;
+
+    } catch(err) {
+        document.getElementById('historyContent').innerHTML = `
+            <div class="alert alert-error">Failed to load history: ${err.message}</div>
+        `;
+    }
+});
+</script>
+{% endblock %}

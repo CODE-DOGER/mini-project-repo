@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2 class="text-center mb-4">Complete Your Booking</h2>
+    <div style="background: rgba(0, 166, 153, 0.1); padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem;">
+        <h4 style="color: var(--secondary); margin-bottom: 0.5rem;">🎉 Reservation Secured!</h4>
+        <p style="font-size: 0.95em; color: var(--text-main);">
+            Please provide payment details to confirm your booking. Note: This is a simulation.
+        </p>
+        <p style="margin-top: 1rem; font-weight: bold; color: #d9534f;">
+            Time remaining to complete payment: <span id="timerDisplay">02:00</span>
+        </p>
+    </div>
+
+    <form id="paymentForm">
+        <div class="form-group">
+            <label>Select Payment Method</label>
+            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                <label style="flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center; cursor: pointer; display: block; font-weight: normal;">
+                    <input type="radio" name="method" value="card" checked>
+                    <div style="margin-top: 0.5rem;">Credit Card</div>
+                </label>
+                <label style="flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center; cursor: pointer; display: block; font-weight: normal;">
+                    <input type="radio" name="method" value="online">
+                    <div style="margin-top: 0.5rem;">Online Wallet</div>
+                </label>
+            </div>
+        </div>
+        
+        <div id="cardDetails" class="form-group">
+            <label for="ccName">Name on Card</label>
+            <input type="text" id="ccName" class="form-control mb-2" placeholder="John Doe">
+            <label for="ccNum">Card Number (Simulated)</label>
+            <input type="text" id="ccNum" class="form-control mb-2" placeholder="XXXX-XXXX-XXXX-XXXX">
+        </div>
+
+        <button type="submit" class="btn btn-block mt-4" id="payBtn">Pay & Confirm</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const urlParams = new URLSearchParams(window.location.search);
+const reservationId = urlParams.get('id');
+
+if (!reservationId) {
+    showAlert('Invalid reservation link.');
+    document.getElementById('payBtn').disabled = true;
+}
+
+document.querySelectorAll('input[name="method"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        const cardDetails = document.getElementById('cardDetails');
+        if (e.target.value === 'card') {
+            cardDetails.style.display = 'block';
+        } else {
+            cardDetails.style.display = 'none';
+        }
+    });
+});
+
+let timeLeft = 120; // 2 minutes
+const timerDisplay = document.getElementById('timerDisplay');
+let timerInterval;
+
+if (reservationId) {
+    timerInterval = setInterval(() => {
+        timeLeft--;
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            document.getElementById('payBtn').disabled = true;
+            if(typeof showAlert === 'function') showAlert('Reservation time expired! Redirecting to dashboard...');
+            setTimeout(() => {
+                window.location.href = "{{ url_for('dashboard') }}";
+            }, 3000);
+        }
+    }, 1000);
+}
+
+document.getElementById('paymentForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('payBtn');
+    btn.textContent = 'Processing Payment...';
+    btn.disabled = true;
+
+    try {
+        const selectedMethod = document.querySelector('input[name="method"]:checked').value;
+        const payload = {
+            reservation_id: reservationId,
+            payment_method: selectedMethod
+        };
+        
+        await apiCall('transactions', 'POST', payload);
+        clearInterval(timerInterval);
+        
+        if(typeof showSuccess === 'function') showSuccess('Payment successful! Redirecting to your bookings...');
+        setTimeout(() => {
+            window.location.href = "{{ url_for('history') }}";
+        }, 1500);
+
+    } catch (err) {
+        btn.textContent = 'Pay & Confirm';
+        btn.disabled = false;
+        showAlert(err.message);
+    }
+});
+</script>
+{% endblock %}
