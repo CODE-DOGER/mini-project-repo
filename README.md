@@ -34,5 +34,4 @@ restaurant_system/
 ├── app.py                 # Core Flask Backend Application / REST API
 ├── schema.sql             # MySQL database schema setup script
 ├── requirements.txt       # Python dependencies required to run the project
-├── presentation_slides.md # Project documentation and presentation materials
 └── README.md              # Project documentation
